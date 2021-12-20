@@ -14,6 +14,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/validation"
 	"github.com/hashicorp/terraform-provider-aws/internal/conns"
+	"github.com/hashicorp/terraform-provider-aws/internal/flex"
 	tftags "github.com/hashicorp/terraform-provider-aws/internal/tags"
 	"github.com/hashicorp/terraform-provider-aws/internal/tfresource"
 	"github.com/hashicorp/terraform-provider-aws/internal/verify"
@@ -46,8 +47,8 @@ func ResourceDataRepositoryAssociation() *schema.Resource {
 			},
 			"batch_import_meta_data_on_create": {
 				Type:     schema.TypeBool,
-				Computed: true,
 				Optional: true,
+				Default:  false,
 			},
 			"data_repository_path": {
 				Type:     schema.TypeString,
@@ -252,8 +253,8 @@ func resourceDataRepositoryAssociationRead(d *schema.ResourceData, meta interfac
 	d.Set("file_system_id", association.FileSystemId)
 	d.Set("file_system_path", association.FileSystemPath)
 	d.Set("imported_file_chunk_size", association.ImportedFileChunkSize)
-	if association.S3 != nil {
-		d.Set("s3", flattenDataRepositoryAssociationS3(association.S3))
+	if err := d.Set("s3", flattenDataRepositoryAssociationS3(association.S3)); err != nil {
+		return fmt.Errorf("error setting s3 data repository configuration: %s", err)
 	}
 
 	tags := KeyValueTags(association.Tags).IgnoreAWS().IgnoreConfig(ignoreTagsConfig)
@@ -305,28 +306,55 @@ func expandDataRepositoryAssociationS3(cfg []interface{}) *fsx.S3DataRepositoryC
 	m := cfg[0].(map[string]interface{})
 
 	s3Config := &fsx.S3DataRepositoryConfiguration{}
+
 	if v, ok := m["auto_export_policy"]; ok {
 		policy := v.([]interface{})
-		if len(policy) == 0 || policy[0] == nil {
-			s3Config.AutoExportPolicy.Events = []*string{}
-		} else {
-			s3Config.AutoExportPolicy.Events = policy[0].(map[string][]*string)["events"]
-		}
+		s3Config.AutoExportPolicy = expandDataRepositoryAssociationS3AutoExportPolicy(policy)
 	}
 	if v, ok := m["auto_import_policy"]; ok {
 		policy := v.([]interface{})
-		if len(policy) == 0 || policy[0] == nil {
-			s3Config.AutoImportPolicy.Events = []*string{}
-		} else {
-			s3Config.AutoImportPolicy.Events = policy[0].(map[string][]*string)["events"]
-		}
+		s3Config.AutoImportPolicy = expandDataRepositoryAssociationS3AutoImportPolicy(policy)
 	}
 
 	return s3Config
 }
 
+func expandDataRepositoryAssociationS3AutoExportPolicy(policy []interface{}) *fsx.AutoExportPolicy {
+	if len(policy) == 0 || policy[0] == nil {
+		return nil
+	}
+
+	m := policy[0].(map[string]interface{})
+	autoExportPolicy := &fsx.AutoExportPolicy{}
+
+	if v, ok := m["events"]; ok {
+		autoExportPolicy.Events = flex.ExpandStringList(v.([]interface{}))
+	}
+
+	return autoExportPolicy
+}
+
+func expandDataRepositoryAssociationS3AutoImportPolicy(policy []interface{}) *fsx.AutoImportPolicy {
+	if len(policy) == 0 || policy[0] == nil {
+		return nil
+	}
+
+	m := policy[0].(map[string]interface{})
+	autoImportPolicy := &fsx.AutoImportPolicy{}
+
+	if v, ok := m["events"]; ok {
+		autoImportPolicy.Events = flex.ExpandStringList(v.([]interface{}))
+	}
+
+	return autoImportPolicy
+}
+
 func flattenDataRepositoryAssociationS3(s3Config *fsx.S3DataRepositoryConfiguration) []map[string]interface{} {
 	result := make(map[string]interface{})
+	if s3Config == nil {
+		return []map[string]interface{}{result}
+	}
+
 	if s3Config.AutoExportPolicy != nil {
 		result["auto_export_policy"] = flattenS3AutoExportPolicy(s3Config.AutoExportPolicy)
 	}
@@ -337,16 +365,26 @@ func flattenDataRepositoryAssociationS3(s3Config *fsx.S3DataRepositoryConfigurat
 	return []map[string]interface{}{result}
 }
 
-func flattenS3AutoExportPolicy(policy *fsx.AutoExportPolicy) []map[string][]*string {
-	result := make(map[string][]*string)
-	result["events"] = policy.Events
+func flattenS3AutoExportPolicy(policy *fsx.AutoExportPolicy) []map[string][]interface{} {
+	result := make(map[string][]interface{})
+	if policy == nil {
+		return []map[string][]interface{}{result}
+	}
+	if policy.Events != nil {
+		result["events"] = flex.FlattenStringList(policy.Events)
+	}
 
-	return []map[string][]*string{result}
+	return []map[string][]interface{}{result}
 }
 
-func flattenS3AutoImportPolicy(policy *fsx.AutoImportPolicy) []map[string][]*string {
-	result := make(map[string][]*string)
-	result["events"] = policy.Events
+func flattenS3AutoImportPolicy(policy *fsx.AutoImportPolicy) []map[string][]interface{} {
+	result := make(map[string][]interface{})
+	if policy == nil {
+		return []map[string][]interface{}{result}
+	}
+	if policy.Events != nil {
+		result["events"] = flex.FlattenStringList(policy.Events)
+	}
 
-	return []map[string][]*string{result}
+	return []map[string][]interface{}{result}
 }

@@ -52,9 +52,11 @@ func TestAccFSxDataRepositoryAssociation_basic(t *testing.T) {
 	})
 }
 
-func TestAccFSxDataRepositoryAssociation_s3AutoExportPolicy(t *testing.T) {
+func TestAccFSxDataRepositoryAssociation_importedFileChunkSize(t *testing.T) {
 	var association fsx.DataRepositoryAssociation
 	resourceName := "aws_fsx_data_repository_association.test"
+	bucketName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	fileSystemPath := "/test"
 
 	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:     func() { acctest.PreCheck(t); acctest.PreCheckPartitionHasService(fsx.EndpointsID, t) },
@@ -63,12 +65,71 @@ func TestAccFSxDataRepositoryAssociation_s3AutoExportPolicy(t *testing.T) {
 		CheckDestroy: testAccCheckFsxDataRepositoryAssociationDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccFsxDataRepositoryAssociationS3AutoExportPolicyConfig([]string{"NEW", "CHANGED", "DELETED"}),
+				Config: testAccFsxDataRepositoryAssociationImportedFileChunkSizeConfig(bucketName, fileSystemPath, 2048),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckFsxDataRepositoryAssociationExists(resourceName, &association),
-					resource.TestCheckResourceAttr(resourceName, "s3.auto_export_policy.events.0", "NEW"),
-					resource.TestCheckResourceAttr(resourceName, "s3.auto_export_policy.events.1", "CHANGED"),
-					resource.TestCheckResourceAttr(resourceName, "s3.auto_export_policy.events.2", "DELETED"),
+					resource.TestCheckResourceAttr(resourceName, "imported_file_chunk_size", "2048"),
+				),
+			},
+			{
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"delete_data_in_filesystem"},
+			},
+		},
+	})
+}
+
+func TestAccFSxDataRepositoryAssociation_deleteDataInFilesystem(t *testing.T) {
+	var association fsx.DataRepositoryAssociation
+	resourceName := "aws_fsx_data_repository_association.test"
+	bucketName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	fileSystemPath := "/test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:     func() { acctest.PreCheck(t); acctest.PreCheckPartitionHasService(fsx.EndpointsID, t) },
+		ErrorCheck:   acctest.ErrorCheck(t, fsx.EndpointsID),
+		Providers:    acctest.Providers,
+		CheckDestroy: testAccCheckFsxDataRepositoryAssociationDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccFsxDataRepositoryAssociationDeleteDataInFilesystemConfig(bucketName, fileSystemPath, "true"),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckFsxDataRepositoryAssociationExists(resourceName, &association),
+					resource.TestCheckResourceAttr(resourceName, "delete_data_in_filesystem", "true"),
+				),
+			},
+			{
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"delete_data_in_filesystem"},
+			},
+		},
+	})
+}
+
+func TestAccFSxDataRepositoryAssociation_s3AutoExportPolicy(t *testing.T) {
+	var association fsx.DataRepositoryAssociation
+	resourceName := "aws_fsx_data_repository_association.test"
+	bucketName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	fileSystemPath := "/test"
+	events := []string{"NEW", "CHANGED", "DELETED"}
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:     func() { acctest.PreCheck(t); acctest.PreCheckPartitionHasService(fsx.EndpointsID, t) },
+		ErrorCheck:   acctest.ErrorCheck(t, fsx.EndpointsID),
+		Providers:    acctest.Providers,
+		CheckDestroy: testAccCheckFsxDataRepositoryAssociationDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccFsxDataRepositoryAssociationS3AutoExportPolicyConfig(bucketName, fileSystemPath, events),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckFsxDataRepositoryAssociationExists(resourceName, &association),
+					resource.TestCheckResourceAttr(resourceName, "s3.0.auto_export_policy.0.events.0", "NEW"),
+					resource.TestCheckResourceAttr(resourceName, "s3.0.auto_export_policy.0.events.1", "CHANGED"),
+					resource.TestCheckResourceAttr(resourceName, "s3.0.auto_export_policy.0.events.2", "DELETED"),
 				),
 			},
 			{
@@ -84,6 +145,10 @@ func TestAccFSxDataRepositoryAssociation_s3AutoExportPolicy(t *testing.T) {
 func TestAccFSxDataRepositoryAssociation_s3AutoExportPolicyUpdate(t *testing.T) {
 	var association1, association2 fsx.DataRepositoryAssociation
 	resourceName := "aws_fsx_data_repository_association.test"
+	bucketName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	fileSystemPath := "/test"
+	events1 := []string{"NEW", "CHANGED", "DELETED"}
+	events2 := []string{"NEW"}
 
 	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:     func() { acctest.PreCheck(t); acctest.PreCheckPartitionHasService(fsx.EndpointsID, t) },
@@ -92,12 +157,12 @@ func TestAccFSxDataRepositoryAssociation_s3AutoExportPolicyUpdate(t *testing.T) 
 		CheckDestroy: testAccCheckFsxDataRepositoryAssociationDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccFsxDataRepositoryAssociationS3AutoExportPolicyConfig([]string{"NEW", "CHANGED", "DELETED"}),
+				Config: testAccFsxDataRepositoryAssociationS3AutoExportPolicyConfig(bucketName, fileSystemPath, events1),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckFsxDataRepositoryAssociationExists(resourceName, &association1),
-					resource.TestCheckResourceAttr(resourceName, "s3.auto_export_policy.events.0", "NEW"),
-					resource.TestCheckResourceAttr(resourceName, "s3.auto_export_policy.events.1", "CHANGED"),
-					resource.TestCheckResourceAttr(resourceName, "s3.auto_export_policy.events.2", "DELETED"),
+					resource.TestCheckResourceAttr(resourceName, "s3.0.auto_export_policy.0.events.0", "NEW"),
+					resource.TestCheckResourceAttr(resourceName, "s3.0.auto_export_policy.0.events.1", "CHANGED"),
+					resource.TestCheckResourceAttr(resourceName, "s3.0.auto_export_policy.0.events.2", "DELETED"),
 				),
 			},
 			{
@@ -107,11 +172,11 @@ func TestAccFSxDataRepositoryAssociation_s3AutoExportPolicyUpdate(t *testing.T) 
 				ImportStateVerifyIgnore: []string{"delete_data_in_filesystem"},
 			},
 			{
-				Config: testAccFsxDataRepositoryAssociationS3AutoExportPolicyConfig([]string{"NEW"}),
+				Config: testAccFsxDataRepositoryAssociationS3AutoExportPolicyConfig(bucketName, fileSystemPath, events2),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckFsxDataRepositoryAssociationExists(resourceName, &association2),
 					testAccCheckFsxDataRepositoryAssociationNotRecreated(&association1, &association2),
-					resource.TestCheckResourceAttr(resourceName, "s3.auto_export_policy.events.0", "NEW"),
+					resource.TestCheckResourceAttr(resourceName, "s3.0.auto_export_policy.0.events.0", "NEW"),
 				),
 			},
 		},
@@ -121,6 +186,9 @@ func TestAccFSxDataRepositoryAssociation_s3AutoExportPolicyUpdate(t *testing.T) 
 func TestAccFSxDataRepositoryAssociation_s3AutoImportPolicy(t *testing.T) {
 	var association fsx.DataRepositoryAssociation
 	resourceName := "aws_fsx_data_repository_association.test"
+	bucketName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	fileSystemPath := "/test"
+	events := []string{"NEW", "CHANGED", "DELETED"}
 
 	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:     func() { acctest.PreCheck(t); acctest.PreCheckPartitionHasService(fsx.EndpointsID, t) },
@@ -129,12 +197,12 @@ func TestAccFSxDataRepositoryAssociation_s3AutoImportPolicy(t *testing.T) {
 		CheckDestroy: testAccCheckFsxDataRepositoryAssociationDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccFsxDataRepositoryAssociationS3AutoImportPolicyConfig([]string{"NEW", "CHANGED", "DELETED"}),
+				Config: testAccFsxDataRepositoryAssociationS3AutoImportPolicyConfig(bucketName, fileSystemPath, events),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckFsxDataRepositoryAssociationExists(resourceName, &association),
-					resource.TestCheckResourceAttr(resourceName, "s3.auto_import_policy.events.0", "NEW"),
-					resource.TestCheckResourceAttr(resourceName, "s3.auto_import_policy.events.1", "CHANGED"),
-					resource.TestCheckResourceAttr(resourceName, "s3.auto_import_policy.events.2", "DELETED"),
+					resource.TestCheckResourceAttr(resourceName, "s3.0.auto_import_policy.0.events.0", "NEW"),
+					resource.TestCheckResourceAttr(resourceName, "s3.0.auto_import_policy.0.events.1", "CHANGED"),
+					resource.TestCheckResourceAttr(resourceName, "s3.0.auto_import_policy.0.events.2", "DELETED"),
 				),
 			},
 			{
@@ -150,6 +218,10 @@ func TestAccFSxDataRepositoryAssociation_s3AutoImportPolicy(t *testing.T) {
 func TestAccFSxDataRepositoryAssociation_s3AutoImportPolicyUpdate(t *testing.T) {
 	var association1, association2 fsx.DataRepositoryAssociation
 	resourceName := "aws_fsx_data_repository_association.test"
+	bucketName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	fileSystemPath := "/test"
+	events1 := []string{"NEW", "CHANGED", "DELETED"}
+	events2 := []string{"NEW"}
 
 	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:     func() { acctest.PreCheck(t); acctest.PreCheckPartitionHasService(fsx.EndpointsID, t) },
@@ -158,12 +230,12 @@ func TestAccFSxDataRepositoryAssociation_s3AutoImportPolicyUpdate(t *testing.T) 
 		CheckDestroy: testAccCheckFsxDataRepositoryAssociationDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: testAccFsxDataRepositoryAssociationS3AutoImportPolicyConfig([]string{"NEW", "CHANGED", "DELETED"}),
+				Config: testAccFsxDataRepositoryAssociationS3AutoImportPolicyConfig(bucketName, fileSystemPath, events1),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckFsxDataRepositoryAssociationExists(resourceName, &association1),
-					resource.TestCheckResourceAttr(resourceName, "s3.auto_import_policy.events.0", "NEW"),
-					resource.TestCheckResourceAttr(resourceName, "s3.auto_import_policy.events.1", "CHANGED"),
-					resource.TestCheckResourceAttr(resourceName, "s3.auto_import_policy.events.2", "DELETED"),
+					resource.TestCheckResourceAttr(resourceName, "s3.0.auto_import_policy.0.events.0", "NEW"),
+					resource.TestCheckResourceAttr(resourceName, "s3.0.auto_import_policy.0.events.1", "CHANGED"),
+					resource.TestCheckResourceAttr(resourceName, "s3.0.auto_import_policy.0.events.2", "DELETED"),
 				),
 			},
 			{
@@ -173,12 +245,46 @@ func TestAccFSxDataRepositoryAssociation_s3AutoImportPolicyUpdate(t *testing.T) 
 				ImportStateVerifyIgnore: []string{"delete_data_in_filesystem"},
 			},
 			{
-				Config: testAccFsxDataRepositoryAssociationS3AutoImportPolicyConfig([]string{"NEW"}),
+				Config: testAccFsxDataRepositoryAssociationS3AutoImportPolicyConfig(bucketName, fileSystemPath, events2),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckFsxDataRepositoryAssociationExists(resourceName, &association2),
 					testAccCheckFsxDataRepositoryAssociationNotRecreated(&association1, &association2),
-					resource.TestCheckResourceAttr(resourceName, "s3.auto_import_policy.events.0", "NEW"),
+					resource.TestCheckResourceAttr(resourceName, "s3.0.auto_import_policy.0.events.0", "NEW"),
 				),
+			},
+		},
+	})
+}
+
+func TestAccFSxDataRepositoryAssociation_s3FullPolicy(t *testing.T) {
+	var association fsx.DataRepositoryAssociation
+	resourceName := "aws_fsx_data_repository_association.test"
+	bucketName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+	fileSystemPath := "/test"
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:     func() { acctest.PreCheck(t); acctest.PreCheckPartitionHasService(fsx.EndpointsID, t) },
+		ErrorCheck:   acctest.ErrorCheck(t, fsx.EndpointsID),
+		Providers:    acctest.Providers,
+		CheckDestroy: testAccCheckFsxDataRepositoryAssociationDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccFsxDataRepositoryAssociationS3FullPolicyConfig(bucketName, fileSystemPath),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckFsxDataRepositoryAssociationExists(resourceName, &association),
+					resource.TestCheckResourceAttr(resourceName, "s3.0.auto_export_policy.0.events.0", "NEW"),
+					resource.TestCheckResourceAttr(resourceName, "s3.0.auto_export_policy.0.events.1", "CHANGED"),
+					resource.TestCheckResourceAttr(resourceName, "s3.0.auto_export_policy.0.events.2", "DELETED"),
+					resource.TestCheckResourceAttr(resourceName, "s3.0.auto_import_policy.0.events.0", "NEW"),
+					resource.TestCheckResourceAttr(resourceName, "s3.0.auto_import_policy.0.events.1", "CHANGED"),
+					resource.TestCheckResourceAttr(resourceName, "s3.0.auto_import_policy.0.events.2", "DELETED"),
+				),
+			},
+			{
+				ResourceName:            resourceName,
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"delete_data_in_filesystem"},
 			},
 		},
 	})
@@ -274,30 +380,50 @@ resource "aws_fsx_data_repository_association" "test" {
 `, bucketName, fileSystemPath))
 }
 
-func testAccFsxDataRepositoryAssociationS3AutoExportPolicyConfig(events []string) string {
-	bucketName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+func testAccFsxDataRepositoryAssociationImportedFileChunkSizeConfig(bucketName, fileSystemPath string, fileChunkSize int64) string {
 	bucketPath := fmt.Sprintf("s3://%s", bucketName)
-	fileSystemPath := "/test"
-	eventsString := strings.Replace(fmt.Sprintf("%q", events), " ", ", ", -1)
 	return acctest.ConfigCompose(testAccDataRepositoryAssociationBucketConfig(bucketName), fmt.Sprintf(`
 resource "aws_fsx_data_repository_association" "test" {
   file_system_id = aws_fsx_lustre_file_system.test.id
   data_repository_path = %[1]q
   file_system_path = %[2]q
+  imported_file_chunk_size = %[3]d
+}
+`, bucketPath, fileSystemPath, fileChunkSize))
+}
 
-  s3 {
-	  auto_export_policy {
-		  events = %[3]s
-	  }
-  }
+func testAccFsxDataRepositoryAssociationDeleteDataInFilesystemConfig(bucketName, fileSystemPath, deleteDataInFilesystem string) string {
+	bucketPath := fmt.Sprintf("s3://%s", bucketName)
+	return acctest.ConfigCompose(testAccDataRepositoryAssociationBucketConfig(bucketName), fmt.Sprintf(`
+resource "aws_fsx_data_repository_association" "test" {
+  file_system_id = aws_fsx_lustre_file_system.test.id
+  data_repository_path = %[1]q
+  file_system_path = %[2]q
+  delete_data_in_filesystem = %[3]q
+}
+`, bucketPath, fileSystemPath, deleteDataInFilesystem))
+}
+
+func testAccFsxDataRepositoryAssociationS3AutoExportPolicyConfig(bucketName, fileSystemPath string, events []string) string {
+	bucketPath := fmt.Sprintf("s3://%s", bucketName)
+	eventsString := strings.Replace(fmt.Sprintf("%q", events), " ", ", ", -1)
+	return acctest.ConfigCompose(testAccDataRepositoryAssociationBucketConfig(bucketName), fmt.Sprintf(`
+resource "aws_fsx_data_repository_association" "test" {
+	file_system_id = aws_fsx_lustre_file_system.test.id
+	data_repository_path = %[1]q
+	file_system_path = %[2]q
+
+	s3 {
+		auto_export_policy {
+			events = %[3]s
+		}
+	}
 }
 `, bucketPath, fileSystemPath, eventsString))
 }
 
-func testAccFsxDataRepositoryAssociationS3AutoImportPolicyConfig(events []string) string {
-	bucketName := sdkacctest.RandomWithPrefix(acctest.ResourcePrefix)
+func testAccFsxDataRepositoryAssociationS3AutoImportPolicyConfig(bucketName, fileSystemPath string, events []string) string {
 	bucketPath := fmt.Sprintf("s3://%s", bucketName)
-	fileSystemPath := "/test"
 	eventsString := strings.Replace(fmt.Sprintf("%q", events), " ", ", ", -1)
 	return acctest.ConfigCompose(testAccDataRepositoryAssociationBucketConfig(bucketName), fmt.Sprintf(`
 resource "aws_fsx_data_repository_association" "test" {
@@ -312,4 +438,24 @@ resource "aws_fsx_data_repository_association" "test" {
   }
 }
 `, bucketPath, fileSystemPath, eventsString))
+}
+
+func testAccFsxDataRepositoryAssociationS3FullPolicyConfig(bucketName, fileSystemPath string) string {
+	bucketPath := fmt.Sprintf("s3://%s", bucketName)
+	return acctest.ConfigCompose(testAccDataRepositoryAssociationBucketConfig(bucketName), fmt.Sprintf(`
+resource "aws_fsx_data_repository_association" "test" {
+  file_system_id = aws_fsx_lustre_file_system.test.id
+  data_repository_path = %[1]q
+  file_system_path = %[2]q
+
+  s3 {
+	  auto_export_policy {
+		  events = ["NEW", "CHANGED", "DELETED"]
+	  }
+	  auto_import_policy {
+		  events = ["NEW", "CHANGED", "DELETED"]
+	  }
+  }
+}
+`, bucketPath, fileSystemPath))
 }
