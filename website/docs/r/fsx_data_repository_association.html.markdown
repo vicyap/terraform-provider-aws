@@ -1,25 +1,47 @@
 ---
 subcategory: "File System (FSx)"
 layout: "aws"
-page_title: "AWS: aws_fsx_lustre_file_system"
+page_title: "AWS: aws_fsx_data_repository_association"
 description: |-
-  Manages a FSx Lustre File System.
+  Manages a FSx for Lustre Data Repository Association.
 ---
 
-# Resource: aws_fsx_lustre_file_system
+# Resource: aws_fsx_data_repository_association
 
-Manages a FSx Lustre File System. See the [FSx Lustre Guide](https://docs.aws.amazon.com/fsx/latest/LustreGuide/what-is.html) for more information.
+Manages a Manages a FSx for Lustre Data Repository Association.. See [Linking your file system to an S3 bucket](https://docs.aws.amazon.com/fsx/latest/LustreGuide/create-dra-linked-data-repo.html) for more information.
 
-~> **NOTE:** `auto_import_policy`, `export_path`, `import_path` and `imported_file_chunk_size` are not supported with the `PERSISTENT_2` deployment type. Use `aws_fsx_lustre_data_repository_association` instead.
+~> **NOTE:** Data Repository Associations are only compatiable with AWS FSx for Lustre File Systems and `PERSISTENT_2` deployment type.
 
 ## Example Usage
 
 ```terraform
+resource "aws_s3_bucket" "example" {
+  acl    = "private"
+  bucket = "my-bucket"
+}
+
 resource "aws_fsx_lustre_file_system" "example" {
-  import_path      = "s3://${aws_s3_bucket.example.bucket}"
   storage_capacity = 1200
   subnet_ids       = [aws_subnet.example.id]
+  deployment_type = "PERSISTENT_2"
+  per_unit_storage_throughput = 125
 }
+
+resource "aws_fsx_data_repository_association" "example" {
+  file_system_id = aws_fsx_lustre_file_system.example.id
+  data_repository_path = "s3://${aws_s3_bucket.example.id}"
+  file_system_path = "/my-bucket"
+
+  s3 {
+    auto_export_policy {
+      events = ["NEW", "CHANGED", "DELETED"]
+    }
+    auto_import_policy {
+      events = ["NEW", "CHANGED", "DELETED"]
+    }
+  }
+}
+
 ```
 
 ## Argument Reference
