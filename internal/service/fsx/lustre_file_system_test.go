@@ -1042,7 +1042,7 @@ resource "aws_fsx_lustre_file_system" "test" {
 func testAccLustreFileSystemFileSystemTypeVersionConfig(fileSystemTypeVersion string) string {
 	return acctest.ConfigCompose(testAccLustreFileSystemBaseConfig(), fmt.Sprintf(`
 resource "aws_fsx_lustre_file_system" "test" {
-  file_system_type_version = %[1]s
+  file_system_type_version = %[1]q
   storage_capacity = 1200
   subnet_ids       = [aws_subnet.test1.id]
   deployment_type  = data.aws_partition.current.partition == "aws-us-gov" ? "SCRATCH_2" : null # GovCloud does not support SCRATCH_1
